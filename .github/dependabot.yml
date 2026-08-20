@@ -42,6 +42,14 @@ updates:
     open-pull-requests-limit: 5
     # SHA pins update along with the `# vX.Y.Z` comment, so reviewers
     # see both the new pin and the human-readable version in the diff.
+    groups:
+      codeql-action:
+        applies-to: version-updates
+        # init/analyze/upload-sarif are separate actions in the same
+        # repo; CodeQL requires them to match versions, so they must
+        # bump together or analyze fails with a version mismatch.
+        patterns:
+          - "github/codeql-action/*"
 
   # Python deps of the manual harness-test rigs under testing/. These are
   # never built, never imported by the binary, and never distributed, so
