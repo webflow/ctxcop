@@ -43,22 +43,17 @@ overlays.
 
 ## Install
 
-```sh
-# 1. Pre-built signed binary from a tagged release.
-#    cosign-signed, SLSA Build L2 provenance. See SECURITY.md for the
-#    verification one-liner.
-tag=$(basename "$(curl -fsSLo /dev/null -w '%{url_effective}' \
-  https://github.com/webflow/ctxcop/releases/latest)")   # e.g. v0.1.0
-os=$(uname -s | tr '[:upper:]' '[:lower:]')               # Darwin->darwin, Linux->linux
-arch=$(uname -m); case "$arch" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; esac
-curl -fL -o ctxcop \
-  "https://github.com/webflow/ctxcop/releases/download/${tag}/ctxcop_${tag}_${os}_${arch}"
-chmod +x ctxcop && mv ctxcop /usr/local/bin/
+Build from source for now — prebuilt binary releases are on hold until
+macOS Developer ID codesigning + notarization are wired into the release
+pipeline (Gatekeeper rejects the ad-hoc-signed binaries a plain `go build`
+produces once they've been through a download/quarantine flow; a locally
+built binary isn't affected).
 
-# 2. go install.
+```sh
+# 1. go install.
 go install github.com/webflow/ctxcop/cmd/ctxcop@latest
 
-# 3. From source.
+# 2. From source.
 git clone https://github.com/webflow/ctxcop && cd ctxcop
 go build -o /usr/local/bin/ctxcop ./cmd/ctxcop
 ```

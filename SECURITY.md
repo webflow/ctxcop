@@ -164,33 +164,27 @@ contains an apparent credential, that's a real report we want to hear.
 
 ## Build integrity
 
-Released binaries are signed with [Sigstore cosign](https://github.com/sigstore/cosign)
-in keyless OIDC mode. The signing identity is the workflow path at a tag,
-e.g. `https://github.com/webflow/ctxcop/.github/workflows/release.yml@refs/tags/vX.Y.Z`.
-Verification:
+Releases are currently source-only — v0.1.0's prebuilt macOS binaries
+were ad-hoc/linker-signed only, which Gatekeeper rejects outright once
+a binary's been through a download/quarantine flow. We're enrolled in
+the Apple Developer Program; codesigning + notarization aren't wired
+into the release pipeline yet. Build from source per the README, or
+`go install github.com/webflow/ctxcop/cmd/ctxcop@latest`, neither of
+which is affected (Gatekeeper only rejects downloaded, quarantined
+binaries, not ones you build locally).
 
-Artifact names carry the release tag, e.g. `ctxcop_v0.1.0_darwin_arm64`
-(`ctxcop_<tag>_<os>_<arch>`, where `<os>` is `darwin`/`linux` and
-`<arch>` is `amd64`/`arm64`). Substitute the version and platform you
-downloaded:
-
-```bash
-cosign verify-blob \
-  --certificate-identity-regexp 'https://github.com/webflow/ctxcop/\.github/workflows/release\.yml@refs/tags/.+' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --signature   ctxcop_<tag>_<os>_<arch>.sig \
-  --bundle      ctxcop_<tag>_<os>_<arch>.bundle \
-  ctxcop_<tag>_<os>_<arch>
-```
+Once prebuilt binaries return, they'll again be signed with
+[Sigstore cosign](https://github.com/sigstore/cosign) in keyless OIDC
+mode (signing identity is the workflow path at a tag, e.g.
+`https://github.com/webflow/ctxcop/.github/workflows/release.yml@refs/tags/vX.Y.Z`)
+plus CycloneDX + SPDX SBOMs and GitHub-native attestations — that
+pipeline is intact in git history and just needs the codesigning step
+added back in front of it.
 
 Builds are bit-for-bit reproducible given the same git tag and Go
-toolchain (pinned via `go-version-file: go.mod`). Anyone can rebuild
-from source and compare sha256 against the released binary — see
+toolchain (pinned via `go-version-file: go.mod`) — see
 [docs/verify-reproducibility.md](docs/verify-reproducibility.md) for
 the paste-and-run script.
-
-SBOMs (CycloneDX + SPDX) are attached to each GitHub Release and published
-as cosign attestations bound to the binary digest.
 
 ## Audit-log integrity
 
