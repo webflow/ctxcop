@@ -1,0 +1,16 @@
+/ctxcop
+/ctxcop-*
+*.test
+*.out
+.DS_Store
+
+# Added by ggshield
+.cache_ggshield
+/test
+
+# testing/ subdir artifacts
+testing/**/.venv/
+testing/**/ctxcop-audit.jsonl
+testing/**/__pycache__/
+
+docs/dev-log/

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ctxcop-pt-test": {
+      "command": "uv",
+      "args": ["run", "--with", "mcp<2", "python", "server.py"]
+    }
+  }
+}

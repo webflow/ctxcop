@@ -1,0 +1,89 @@
+# golangci-lint config for ctxcop.
+#
+# Tuned conservatively: enable the linters that catch real bugs and
+# subtle correctness issues, disable the style nags (we already enforce
+# gofmt + manual review). The fail-loud-on-real-issues vs grumble-about-
+# whitespace trade-off matters more for a security tool where reviewer
+# attention is finite.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    # Bug-finders we always want.
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    # Specific to a security tool's discipline.
+    - bodyclose       # missing resp.Body.Close()
+    - gocheckcompilerdirectives
+    - gosec           # secondary to the CI gosec job; catches a
+                      # different subset (rule overlap is fine).
+    - misspell        # typos in errors/comments embarrass us in OSS
+    - unconvert
+    - usestdlibvars
+
+  settings:
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        # G104 (errors not checked) is covered better by errcheck with
+        # our exclusion list; gosec's version is too aggressive on
+        # `_, _ = io.WriteString(...)` style intentional ignores.
+        - G104
+        # G204 (subprocess launched with tainted input) — `ctxcop run`
+        # wraps arbitrary user-supplied commands as part of its design
+        # (Bash hook rewrite: child process is exactly what the agent
+        # asked to run, minus the redaction wrap). Sanitizing would
+        # break the tool.
+        - G204
+        # G301 (directory permissions <= 0750) — harness config
+        # directories (~/.claude/, ~/.codex/, ~/.cursor/) need 0755 so
+        # the harness process itself can traverse them. 0750 is
+        # tighter than necessary and breaks legitimate access.
+        - G301
+        # G304 (file path provided as taint input) — ctxcop's whole
+        # job is to handle file paths from tool inputs. We validate
+        # via shouldSkipPath; gosec can't see that.
+        - G304
+        # G306 (WriteFile permissions <= 0600) — settings.json /
+        # config.toml / hooks.json need 0644 to be readable by the
+        # harness process. The audit log (which IS sensitive) uses
+        # 0600 explicitly; gosec can't distinguish the two cases.
+        - G306
+
+    errcheck:
+      exclude-functions:
+        # We intentionally ignore writes to stdout/stderr in hook
+        # passthrough paths (the fail-open posture: even a broken
+        # writer shouldn't block tool calls).
+        - (io.Writer).Write
+        - io.WriteString
+        - fmt.Fprintln
+        - fmt.Fprintf
+        - fmt.Fprint
+        - fmt.Println
+        - fmt.Printf
+        - os.RemoveAll
+
+  exclusions:
+    rules:
+      # Tests can use longer functions, more globals, and less
+      # error-handling discipline than production code.
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go$
+
+issues:
+  max-issues-per-linter: 50
+  max-same-issues: 10

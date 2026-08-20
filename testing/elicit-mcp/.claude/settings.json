@@ -1,0 +1,6 @@
+{
+  "env": {
+    "CTXCOP_AUDIT_LOG": "./ctxcop-audit.jsonl"
+  },
+  "enableAllProjectMcpServers": true
+}

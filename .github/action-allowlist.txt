@@ -1,0 +1,55 @@
+# Allowlist for GitHub Actions in this repo. Lines starting with # are
+# comments. Each entry is an `<owner>/<repo>` allowlisted to be used as
+# `uses:` in any workflow under .github/workflows/. SHAs aren't stored
+# here — workflow files SHA-pin per ACTION_PIN_POLICY.md; this file
+# governs *which* upstream repos are eligible to be imported at all.
+#
+# Adding a new entry: open a PR. CODEOWNERS routes it to
+# @webflow/infrastructure-security for review. Include in the PR
+# description: (a) what the action does, (b) why a `run:` step won't
+# suffice, (c) maintainer posture (first-party / well-known org /
+# small team / single maintainer), (d) the SHA you intend to pin.
+
+# --- GitHub first-party ---
+# Repository checkout. Read-only at workflow root.
+actions/checkout
+
+# Go toolchain installer. Pinned via go-version-file: go.mod with
+# check-latest: false.
+actions/setup-go
+
+# Artifact handoff between matrix jobs in the release pipeline.
+# Same trust boundary as GITHUB_TOKEN; first-party.
+actions/upload-artifact
+actions/download-artifact
+
+# Attestation publishing to GitHub's native store. Used by the release
+# workflow to attach SLSA provenance and SBOM attestations to release
+# artifacts; verifiable with `gh attestation verify`.
+actions/attest-build-provenance
+actions/attest-sbom
+
+# CodeQL static-analysis. GitHub-published, runs entirely on the
+# workflow runtime trust boundary so the wrapper-aversion rule yields.
+github/codeql-action
+
+# --- Sigstore (CNCF graduated) ---
+# Cosign installer. One of the few wrapper actions we accept — its only
+# job is to fetch a Sigstore-signed cosign binary from a CNCF-graduated
+# project. The alternative (curl + checksum-verify) is no safer and adds
+# 10 lines per workflow.
+sigstore/cosign-installer
+
+# --- OpenSSF first-party ---
+# Scorecard. The canonical OSS supply-chain scoring action. Results
+# publish to code-scanning; we badge the score in README.
+ossf/scorecard-action
+
+# --- SLSA framework reusable workflow ---
+# slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@<sha>
+# Reusable workflow that runs the Go build on an isolated GitHub-hosted
+# runner with Sigstore-verified provenance. The one third-party
+# reusable workflow we trust, justified by its isolated-runner property
+# (build commits committed mid-build can't tamper). Collaborated on by
+# Google, Chainguard, and the Linux Foundation.
+slsa-framework/slsa-github-generator

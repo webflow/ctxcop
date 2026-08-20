@@ -1,0 +1,78 @@
+name: Bug report
+description: Something is broken — ctxcop's behavior differs from what's documented.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **Suspect a security vulnerability?** Stop here and use the
+        [GitHub Private Security Advisory flow](https://github.com/webflow/ctxcop/security/advisories/new)
+        instead. Public issues are the wrong channel for credential-leak
+        or signing-verification bugs — see SECURITY.md.
+
+  - type: input
+    id: version
+    attributes:
+      label: ctxcop version
+      description: Output of `ctxcop --version`.
+      placeholder: "v0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Affected harness
+      multiple: true
+      options:
+        - Claude Code
+        - Codex CLI
+        - Cursor
+        - Not harness-specific (scan/run/install/etc.)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS + arch
+      placeholder: "macOS 15.4 arm64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you thought would happen, and (if relevant) the part of the docs that led you to expect it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproducer
+      description: |
+        Ideally a single command or a JSON payload piped to a specific
+        `ctxcop hook ...` subcommand. The smaller, the faster we can
+        triage. If you can't reduce it, that's fine — describe the
+        observed flow.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output / hook responses
+      description: |
+        Output from the failing path. **Scrub credentials before pasting.**
+        If you have a `$CTXCOP_AUDIT_LOG` entry for the event, include it.
+      render: shell

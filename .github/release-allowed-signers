@@ -1,0 +1,21 @@
+# Public keys allowed to sign release tags (`v*`).
+#
+# Format: one entry per line, matching ssh-keygen's allowed_signers
+# format: <principal>[,principal] <key-type> <key-data> [<comment>]
+#
+# Principal: an email or identifier — purely a label, used in
+# verification error messages. Use the maintainer's webflow address
+# so audit logs name the human.
+#
+# On `git push` of a v* tag, the release.yml workflow verifies:
+#   1. The tag object is annotated (not lightweight).
+#   2. `git tag -v <tag>` resolves the signer's pubkey against this
+#      file and reports a good signature.
+#
+# Add a new maintainer key: open a PR. CODEOWNERS routes it to
+# @webflow/infrastructure-security for review. Tag-signing is the
+# chokepoint of the signed-release pipeline; treat additions as
+# the high-trust event that they are.
+
+andrew.rose@webflow.com sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIPiF7XsA3nlk6ROr9DTRuVaKvOUi82muS0sui2ENZvQRAAAABHNzaDo=
+

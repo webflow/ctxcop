@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/webflow/ctxcop/security/advisories/new
+    about: >
+      Do NOT open a public issue for vulnerabilities. Use GitHub's Private
+      Security Advisory flow so we can collaborate privately and request a
+      CVE. See SECURITY.md for the full disclosure policy.
+  - name: Ask a question / discuss usage
+    url: https://github.com/webflow/ctxcop/discussions
+    about: >
+      Usage questions, design discussions, and "how do I configure X" topics
+      go to Discussions. Issues are for actionable bugs and feature
+      requests.

@@ -1,0 +1,31 @@
+# CODEOWNERS for webflow/ctxcop
+#
+# Branch protection requires CODEOWNER review on PRs touching security-
+# sensitive paths. Catch-all is the maintainer pair; security-sensitive
+# globs additionally require @webflow/infrastructure-security review so
+# that detection logic, supply-chain config, and threat-model docs can't
+# land on a single individual's approval.
+
+# Catch-all
+*                          @arr-wf @webflow/infrastructure-security
+
+# Workflow + supply-chain config — third-party deps and CI gates land here.
+.github/workflows/*        @arr-wf @webflow/infrastructure-security
+.github/ACTION_PIN_POLICY.md  @arr-wf @webflow/infrastructure-security
+.github/action-allowlist.txt  @arr-wf @webflow/infrastructure-security
+.goreleaser.yml            @arr-wf @webflow/infrastructure-security
+go.mod                     @arr-wf @webflow/infrastructure-security
+go.sum                     @arr-wf @webflow/infrastructure-security
+
+# Security-policy and threat-model docs.
+SECURITY.md                @arr-wf @webflow/infrastructure-security
+THREATMODEL.md             @arr-wf @webflow/infrastructure-security
+THIRD_PARTY_AUDIT.md       @arr-wf @webflow/infrastructure-security
+
+# Detection layer — false negatives leak credentials.
+internal/redact/**         @arr-wf @webflow/infrastructure-security
+internal/rules/**          @arr-wf @webflow/infrastructure-security
+internal/skiplist/**       @arr-wf @webflow/infrastructure-security
+
+# Harness adapters — wrong JSON shape is a silent leak.
+internal/harness/**        @arr-wf @webflow/infrastructure-security

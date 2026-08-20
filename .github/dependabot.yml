@@ -1,0 +1,68 @@
+version: 2
+
+# Weekly updates. Two ecosystems: Go modules (the runtime deps) and
+# GitHub Actions (the SHA pins in .github/workflows/). Both honor the
+# SHA-pin + comment-format convention so Dependabot can update pins
+# in-place without manual ref translation.
+#
+# betterleaks is excluded from gomod updates by design — see
+# THIRD_PARTY_AUDIT.md for the single-maintainer-dep review process.
+
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    groups:
+      indirect-and-patch:
+        applies-to: version-updates
+        update-types:
+          - patch
+          - minor
+        # Patch + minor of transitive deps go in one weekly PR rather
+        # than 12 separate ones; security updates still open their own.
+        patterns:
+          - "*"
+    ignore:
+      # See THIRD_PARTY_AUDIT.md — betterleaks bumps are manual, line-
+      # by-line reviewed, with a review-log entry before merging.
+      - dependency-name: github.com/betterleaks/betterleaks
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 5
+    # SHA pins update along with the `# vX.Y.Z` comment, so reviewers
+    # see both the new pin and the human-readable version in the diff.
+
+  # Python deps of the manual harness-test rigs under testing/. These are
+  # never built, never imported by the binary, and never distributed, so
+  # `osv-scanner` in ci.yml deliberately does NOT gate on them (it scans
+  # go.mod only). Dependabot is the coverage that replaces it: findings
+  # arrive as PRs and alerts rather than as a red main blocking a release.
+  #
+  # Grouped and monthly on purpose — these rigs are run by hand a few times
+  # a release, so weekly churn here would be pure noise.
+  - package-ecosystem: uv
+    directories:
+      - /testing/elicit-mcp
+      - /testing/posttooluse-mcp
+    schedule:
+      interval: monthly
+      day: monday
+      time: "08:00"
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 2
+    groups:
+      test-fixture-deps:
+        applies-to: version-updates
+        patterns:
+          - "*"

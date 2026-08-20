@@ -1,0 +1,59 @@
+# OpenSSF Scorecard — weekly OSS supply-chain posture score.
+#
+# Publishes results to code-scanning (visible alongside CodeQL
+# findings) and to OpenSSF's public scorecard.dev where the README
+# badge resolves from. Don't aim for 10/10 at launch; honest current
+# score beats no score.
+
+name: scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Monday 09:00 UTC.
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    # Scorecard's analyzers fetch the repo via anonymous HTTPS and
+    # require public visibility (scorecard.dev only scores public
+    # projects, and the action's checkout/clone fails on private
+    # repos). Skip rather than fail red while the repo is private;
+    # auto-engages on flip.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # Scorecard publishes SARIF results to code-scanning.
+      security-events: write
+      # ...and reads workflow run metadata to score CI-quality checks.
+      actions: read
+      # ...and (when configured) publishes results back to the
+      # OpenSSF API for the badge endpoint.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: run scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc  # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # publish_results=true makes the score available at
+          # https://api.scorecard.dev/projects/github.com/webflow/ctxcop
+          # so the README badge resolves. Only fires on push to main
+          # (the action enforces this), so PRs don't leak score
+          # snapshots.
+          publish_results: true
+
+      - name: upload SARIF
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
+        with:
+          sarif_file: results.sarif

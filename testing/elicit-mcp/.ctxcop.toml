@@ -1,0 +1,7 @@
+# This dir is the test fixture for webflow/ctxcop#3. README.md and
+# RESULT.md document a credential-shape test sentinel for the
+# experiment; allowlisting it locally stops ctxcop from blocking edits
+# to those docs.
+[allowlist]
+description = "elicit-experiment test sentinel"
+regexes = ['''AKIAELICITSENTINEL34''']  # ctxcop:fixture

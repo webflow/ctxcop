@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a new detection rule, harness adapter, or capability.
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the user-visible problem first, the proposed solution
+        second. "I want X" without "because Y" is harder to triage.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: |
+        Sketch the implementation if you have one in mind. Calling out
+        specific files, subcommands, or hook events helps maintainers
+        weigh complexity.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Workarounds, partial mitigations, or out-of-scope-for-ctxcop
+        options you ruled out and why. This protects against duplicate
+        proposals and helps shape scope.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Category
+      options:
+        - Detection rule (new credential format)
+        - Harness adapter (new AI agent integration)
+        - Hook semantics (existing harness, new behavior)
+        - CLI / UX (install, status, audit, etc.)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Are you open to contributing the change?
+      options:
+        - label: Yes — I'd like to send a PR (please assign or comment if you want me to wait).
+        - label: Maybe — happy to write it if a maintainer agrees on direction.
+        - label: No — just flagging the need.

@@ -1,0 +1,194 @@
+title = "ctxcop high-confidence rules"
+
+# These rules target the CLI-tool-output threat model, which differs from
+# gitleaks' source-code-scan model in one important way: in scan-source mode,
+# false positives are user-visible noise — bad. In our model, over-redaction
+# in tool output is safe (the value just gets a placeholder); under-redaction
+# leaks the secret into the model's context. So we deliberately relax some of
+# gitleaks' boundary requirements that lead to under-detection when secrets
+# are concatenated to surrounding text without whitespace.
+#
+# All rules here are HIGH-CONFIDENCE single-purpose prefixes — they identify
+# a specific credential class, not a generic high-entropy string. Adding a
+# fuzzy "any long alphanumeric near 'password'" rule belongs in user
+# overrides, not the default pack.
+
+[[rules]]
+id = "ctxcop-aws-access-key"
+description = "AWS access key ID (boundary-less; closes abutment bypass)"
+regex = '''((?:A3T[A-Z0-9]|AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})'''
+keywords = ["a3t", "akia", "asia", "abia", "acca"]
+
+[[rules]]
+id = "ctxcop-github-pat-classic"
+description = "GitHub personal access token (classic) — boundary-less"
+regex = '''(ghp_[A-Za-z0-9]{36})'''
+keywords = ["ghp_"]
+
+[[rules]]
+id = "ctxcop-github-pat-finegrained"
+description = "GitHub fine-grained personal access token"
+regex = '''(github_pat_[A-Za-z0-9_]{82})'''
+keywords = ["github_pat_"]
+
+[[rules]]
+id = "ctxcop-github-app-token"
+description = "GitHub app installation / OAuth token"
+regex = '''((?:gho|ghu|ghs|ghr)_[A-Za-z0-9]{36})'''
+keywords = ["gho_", "ghu_", "ghs_", "ghr_"]
+
+[[rules]]
+id = "ctxcop-gitlab-pat"
+description = "GitLab personal access token"
+regex = '''(glpat-[A-Za-z0-9_\-]{20})'''
+keywords = ["glpat-"]
+
+[[rules]]
+id = "ctxcop-slack-token"
+description = "Slack bot / user / app token"
+regex = '''(xox[bpoars]-[A-Za-z0-9-]{10,72})'''
+keywords = ["xoxb-", "xoxp-", "xoxa-", "xoxo-", "xoxs-", "xoxr-"]
+
+[[rules]]
+id = "ctxcop-stripe-secret-key"
+description = "Stripe live/test secret key"
+regex = '''((?:sk|rk)_(?:live|test)_[A-Za-z0-9]{24,99})'''
+keywords = ["sk_live_", "sk_test_", "rk_live_", "rk_test_"]
+
+[[rules]]
+id = "ctxcop-aws-session-token"
+description = "AWS STS session token (FwoG / IQoJ / FQoG / FwoD / IQoD prefix)"
+regex = '''((?:FwoG|FwoD|IQoJ|IQoD|FQoG)[A-Za-z0-9/+=]{100,999})'''
+keywords = ["fwog", "fwod", "iqoj", "iqod", "fqog"]
+
+# Bearer tokens in HTTP output. Upstream betterleaks catches JWTs and curl
+# command lines, but a bare `Authorization: Bearer <opaque>` line — the
+# canonical shape in `gh api -v`, `curl -v` dumps, HTTP debug logs, and
+# CI tooling output — has no prefix rule. Anchored on the literal
+# `Bearer ` discriminator. Entropy filter discards natural-language
+# false positives (`Bearer authority-on-this-matter` etc.); regex
+# minimum of 20 chars discards placeholder shapes like `Bearer YOUR_KEY`.
+# AWS secret access key. A 40-char base64ish secret has no self-identifying
+# prefix (unlike AKIA... access-key IDs), so a bare 40-char match is the FP
+# trap gitleaks deliberately avoids. We bake the discriminating keyword INTO
+# the regex (betterleaks keyword prefilter is fragment-level, not proximity),
+# so we only fire when an `aws_secret[_access]_key` label sits immediately
+# before the value. The trailing non-base64 boundary pins the length to
+# exactly 40 (real AWS secrets), preventing a 40-char slice of a longer blob.
+[[rules]]
+id = "ctxcop-aws-secret-access-key"
+description = "AWS secret access key (40-char secret gated on an adjacent aws-secret label, any word-separator style)"
+# Separators are optional so snake_case, kebab-case, and camelCase labels all
+# match: aws_secret_access_key / aws-secret-access-key / awsSecretAccessKey.
+# Alternatives are ordered longest-first — Go's regexp is leftmost-first, so a
+# short alternative matching early would strand the rest of the label before
+# the `[:=]`. Keywords must cover every separator style independently: the
+# prefilter matches literal substrings of the lowercased content, so
+# `awssecretaccesskey` is not reachable via the `aws_secret` keyword.
+regex = '''(?i)(?:aws[_-]?secret[_-]?access[_-]?key|secret[_-]?access[_-]?key|aws[_-]?secret[_-]?key|aws[_-]?secret)["']?[ \t]*[:=][ \t]*["']?([A-Za-z0-9/+]{40})(?:[^A-Za-z0-9/+]|$)'''
+keywords = ["aws_secret", "aws-secret", "awssecret", "secret_access_key", "secret-access-key", "secretaccesskey"]
+filter = '''entropy(finding["secret"]) <= 3.0'''
+
+# Database connection URI carrying an inline password
+# (scheme://user:PASSWORD@host). Scheme-gated to known DB drivers so we never
+# touch a plain http(s) URL. Capture group 1 is just the password authority —
+# the username and host stay visible. A credential-less DSN like
+# `postgres://localhost:5432/db` has no `:pass@` and is left alone.
+#
+# The username is `*` not `+`: redis and amqp routinely authenticate with a
+# password and no username, so the userinfo begins directly with the colon —
+# a shape the previous `+` quantifier could not match. (Deliberately described
+# rather than shown: a literal example DSN here would be a live match.)
+# The trailing `@` is what keeps this from matching a credential-less DSN —
+# in `postgres://localhost:5432/db` the port is followed by `/`, not `@`.
+[[rules]]
+id = "ctxcop-db-connection-uri"
+description = "Database connection URI with embedded password (scheme://[user]:PASSWORD@host)"
+regex = '''(?i)(?:postgres|postgresql|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqp|amqps|jdbc:[a-z0-9]+)://[^\s:/@]*:([^\s:/@]+)@'''
+keywords = ["postgres", "mysql", "mariadb", "mongodb", "redis", "amqp", "jdbc:"]
+
+# Generic URL userinfo credential (scheme://user:PASSWORD@host) for non-DB
+# schemes. Requires an actual `:password@` — `user@host` (no colon) and
+# `user:@host` (empty password, {3,} floor) are ignored. An anchored
+# placeholder allowlist drops doc boilerplate like `https://user:password@…`
+# without suppressing real high-entropy secrets in the same position.
+[[rules]]
+id = "ctxcop-url-userinfo-credential"
+description = "Credential in URL userinfo authority (scheme://user:PASSWORD@host)"
+regex = '''(?i)[a-z][a-z0-9+.\-]*://[^\s:/@]+:([^\s:/@]{3,})@[^\s:/@]'''
+keywords = ["://"]
+filter = '''
+matchesAny(finding["secret"], [
+  "(?i)^(?:password|passwd|pass|secret|token|changeme|placeholder|example|redacted|your[_-]?password)$",
+  "^<[^>]+>$",
+  "^\\$\\{?[A-Za-z0-9_]+\\}?$"
+])
+'''
+
+# SendGrid API key: literal `SG.` + a base64ish id segment + `.` + a base64ish
+# secret segment. The two-segment dotted structure after the `SG.` sentinel is
+# the discriminator (bounds widened slightly past the canonical 22/43 to cover
+# real-world variants), so no entropy floor is needed.
+[[rules]]
+id = "ctxcop-sendgrid-api-key"
+description = "SendGrid API key (SG.<id>.<secret>)"
+regex = '''(SG\.[A-Za-z0-9_\-]{16,40}\.[A-Za-z0-9_\-]{30,72})'''
+keywords = ["sg."]
+
+# HTTP Basic auth credential. Anchored on the `Authorization`/`Proxy-Authorization`
+# header name so the bare word "basic" in prose can't trigger it; captures the
+# base64 blob after `Basic `. Placeholder/template allowlist mirrors the bearer
+# rule. betterleaks' base64 decoder may separately surface the decoded
+# `user:pass`, but we redact the wire credential directly regardless.
+[[rules]]
+id = "ctxcop-http-basic-auth"
+description = "HTTP Basic authorization credential (Authorization: Basic <base64>)"
+regex = '''(?i)(?:proxy-)?authorization["']?[ \t]*[:=][ \t]*["']?basic[ \t]+([A-Za-z0-9+/]{16,}={0,2})'''
+keywords = ["authorization"]
+filter = '''
+matchesAny(finding["secret"], [
+  "(?i)^(?:base64|credentials|placeholder|example|token)$",
+  "^<[^>]+>$",
+  "^\\$\\{?[A-Za-z0-9_]+\\}?$"
+])
+'''
+
+[[rules]]
+id = "ctxcop-bearer-token"
+description = "HTTP Bearer authorization token (Authorization: Bearer <opaque> in tool output)"
+regex = '''(?i)bearer[ \t]+([A-Za-z0-9_\-./+=~]{20,})'''
+keywords = ["bearer"]
+filter = '''
+entropy(finding["secret"]) <= 3.5
+|| matchesAny(finding["secret"], [
+  "(?i)^(?:your|null|undefined|none|token|placeholder|example|sample|test|fake|dummy)[A-Za-z0-9_-]*$",
+  "^<[^>]+>$",
+  "^\\$\\{?[A-Z_][A-Z0-9_]*\\}?$"
+])
+'''
+
+# OVERRIDE of the upstream `sourcegraph-access-token` rule (same ID, so
+# ctxcop-embedded wins over upstream-default). Upstream accepts a bare
+# 40-char hex string as a third alternative alongside the `sgp_` forms —
+# byte-for-byte the shape of a Git object ID.
+#
+# Keyword gating does not save it: gitleaks keywords are a payload-wide
+# prefilter, not a proximity requirement. One mention of "sourcegraph" or
+# "sgp_" anywhere in the payload opens the gate, and then EVERY commit hash
+# and SHA-pinned `uses:` line in that payload is redacted. Worse, it
+# self-amplifies — the placeholder text embeds the rule ID, so a single
+# legitimate hit puts "sourcegraph" in the payload and poisons every SHA
+# after it.
+#
+# Fix: keep only the prefixed forms and drop the bare-hex alternative.
+# "sourcegraph" also leaves the keyword list, since every surviving
+# alternative literally contains `sgp_` — merely discussing Sourcegraph no
+# longer opens the gate at all. Trade-off: legacy un-prefixed Sourcegraph
+# tokens are no longer detected. They are undecidable against a Git SHA
+# without proximity analysis, and for tool-output scanning the cost of
+# eating every commit hash outweighs that recall.
+[[rules]]
+id = "sourcegraph-access-token"
+description = "Sourcegraph access token (prefixed forms only; bare 40-hex dropped — collides with Git SHAs)"
+regex = '''(?i)\b(\b(sgp_(?:[a-fA-F0-9]{16}|local)_[a-fA-F0-9]{40}|sgp_[a-fA-F0-9]{40})\b)(?:\\?['"\x60]|[\s;]|\\[nr]|$)'''
+keywords = ["sgp_"]

@@ -1,0 +1,57 @@
+# CodeQL static analysis for Go.
+#
+# GitHub-published action; per .github/ACTION_PIN_POLICY.md the
+# wrapper-aversion rule yields here because CodeQL runs entirely on
+# the workflow runtime trust boundary (no separate vendor binary fetch
+# behind the scenes) and the action is first-party.
+#
+# Runs the default Go suite plus the `security-and-quality` query pack.
+# Findings file as code-scanning alerts under the Security tab;
+# error-severity findings gate PR merges via branch protection.
+
+name: codeql
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Tuesday 9am UTC. Catches advisories the query pack picks
+    # up after a release that wouldn't otherwise re-run codeql.
+    - cron: '0 9 * * 2'
+
+permissions:
+  contents: read
+  security-events: write   # publish alerts to code-scanning
+  actions: read
+
+jobs:
+  analyze:
+    # CodeQL on a private repo requires GitHub Advanced Security (paid
+    # for private; free for public). Until either GHAS is enabled or
+    # the repo flips public, skip rather than fail red. Auto-engages
+    # the moment the repo becomes public.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: initialize
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
+        with:
+          languages: go
+          queries: security-and-quality
+
+      - name: build
+        # Manual build step so CodeQL traces the actual compile path.
+        run: go build ./...
+
+      - name: analyze
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3  # v4.37.6
+        with:
+          category: '/language:go'

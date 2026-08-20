@@ -1,0 +1,122 @@
+title = "ctxcop example ruleset: crypto-wallet + financial PII/DLP"
+
+# EXAMPLE, OPT-IN ruleset — NOT loaded by default.
+#
+# ctxcop's built-in pack targets machine credentials (API keys, tokens,
+# session material). This file adds a different, broader class: crypto-wallet
+# identifiers and financial personally-identifiable information (PII). That is
+# deliberately OUTSIDE the default scope — PII/DLP rules are inherently more
+# false-positive-prone than credential prefixes, so they ship as an example a
+# user opts into rather than as a default.
+#
+# Enable it via the existing CTXCOP_RULES overlay mechanism:
+#
+#     CTXCOP_RULES=/path/to/examples/rules/pii-dlp.toml ctxcop scan
+#
+# Schema is identical to internal/rules/embedded/ctxcop.toml: [[rules]] with
+# id, description, regex (secret in capture group 1), optional keywords
+# prefilter, optional entropy, optional filter (CEL; true = discard finding),
+# and optional [[rules.allowlists]].
+#
+# Design notes for this pack (PII is FP-prone, so lean on guards):
+#   - Format/length-anchored regexes, not generic high-entropy matches.
+#   - keywords prefilter where a natural discriminator exists ("card", "ssn",
+#     "iban", "routing", "account", "0x", "bc1", "xpub", "pk") so the rule
+#     only evaluates when that token is present in the surrounding text.
+#   - a CEL stopword filter on seed phrases so ordinary English prose (which
+#     always contains function words like "the"/"and") is not mistaken for a
+#     BIP-39 mnemonic.
+
+# --- Crypto wallet addresses & keys -------------------------------------
+
+[[rules]]
+id = "pii-btc-p2pkh"
+description = "Bitcoin P2PKH address (base58, leading 1)"
+regex = '''\b(1[1-9A-HJ-NP-Za-km-z]{25,34})\b'''
+# No natural keyword (bare address); anchored on the '1' prefix + base58
+# charset + length. Documentation/example addresses are allowlisted below.
+[[rules.allowlists]]
+description = "skip well-known documentation/example wallet addresses"
+regexTarget = "line"
+regexes = [
+  '''(?i)well-known''',
+  '''(?i)genesis block''',
+  '''(?i)used in documentation''',
+  '''(?i)address formats''',
+]
+
+[[rules]]
+id = "pii-btc-bech32"
+description = "Bitcoin Bech32 (SegWit) address (bc1…)"
+regex = '''\b(bc1[a-z0-9]{25,87})\b'''
+keywords = ["bc1"]
+
+[[rules]]
+id = "pii-eth-address"
+description = "Ethereum address (0x + 40 hex)"
+regex = '''\b(0x[0-9a-fA-F]{40})\b'''
+keywords = ["0x"]
+
+[[rules]]
+id = "pii-eth-raw-privkey"
+description = "Raw secp256k1 private key (64 hex); keyword-gated to limit sha256 collisions"
+regex = '''\b([0-9a-fA-F]{64})\b'''
+# Gated: a bare 64-hex string is indistinguishable from a sha256 digest, so
+# only evaluate near a private-key discriminator. This trades recall for a
+# far lower FP rate (docker digests, checksums, etc. are 64-hex too).
+keywords = ["pk", "privkey", "private", "secp256k1"]
+
+[[rules]]
+id = "pii-crypto-xpub"
+description = "Extended public key (xpub…)"
+regex = '''\b(xpub[1-9A-HJ-NP-Za-km-z]{100,112})\b'''
+keywords = ["xpub"]
+
+[[rules]]
+id = "pii-crypto-wif-privkey"
+description = "WIF-encoded private key (base58, leading 5/K/L)"
+regex = '''\b([5KL][1-9A-HJ-NP-Za-km-z]{50,51})\b'''
+
+[[rules]]
+id = "pii-crypto-seed-phrase"
+description = "BIP-39 mnemonic seed phrase (12–24 words, space or + separated)"
+regex = '''\b((?:[a-z]{3,8}[ +]){11,23}[a-z]{3,8})\b'''
+# No keyword exists for a bare mnemonic, so this rule evaluates everywhere.
+# The CEL filter discards any run that contains a common English function
+# word as a standalone token — BIP-39 words never include these, but ordinary
+# prose always does, which is what separates a mnemonic from a sentence.
+filter = '''
+matchesAny(finding["secret"], ["(?i)\\b(the|and|of|to|a|in|is|it|for|that|with|as|on|at|by|or|an|be|are|was|from|this|which|must|when|per|given|where|any|not|but|has|had|will|shall|can|may|should|would|its|their|our|your|his|her|been|were|than|then|into|over|such)\\b"])
+'''
+
+# --- Financial PII ------------------------------------------------------
+
+[[rules]]
+id = "pii-credit-card"
+description = "Payment card number (13–19 digits, gated on 'card' keyword)"
+regex = '''\b(\d{13,19})\b'''
+keywords = ["card"]
+
+[[rules]]
+id = "pii-iban"
+description = "IBAN (international bank account number)"
+regex = '''\b([A-Z]{2}\d{2}[A-Z0-9]{11,30})\b'''
+keywords = ["iban"]
+
+[[rules]]
+id = "pii-ssn"
+description = "US Social Security Number (NNN-NN-NNNN)"
+regex = '''\b(\d{3}-\d{2}-\d{4})\b'''
+keywords = ["ssn"]
+
+[[rules]]
+id = "pii-bank-routing"
+description = "US bank routing number (9 digits, gated on 'routing' keyword)"
+regex = '''\b(\d{9})\b'''
+keywords = ["routing"]
+
+[[rules]]
+id = "pii-bank-account"
+description = "Bank account number (8–17 digits, gated on 'account' keyword)"
+regex = '''\b(\d{8,17})\b'''
+keywords = ["account"]

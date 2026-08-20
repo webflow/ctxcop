@@ -1,0 +1,97 @@
+# Daily vulnerability sweep, decoupled from PR throughput.
+#
+# Re-runs govulncheck + osv-scanner against `main` and files an
+# issue (NOT a PR) if a new advisory hits us. The issue routes to
+# CODEOWNERS-gated triage; security-team review is part of the
+# normal triage flow.
+#
+# Why daily and not just on-push: an advisory often hits the OSV
+# database hours-to-days after a commit lands; pushing CI doesn't
+# re-evaluate. Cron'd vuln-scan covers that window.
+
+name: vuln-scan
+
+on:
+  schedule:
+    # Daily 14:00 UTC (~07:00 PT) so findings land before the
+    # morning triage window.
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write   # file an issue when a new advisory hits
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      findings: ${{ steps.collect.outputs.findings }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: govulncheck
+        id: govuln
+        # Non-fatal here so we can still run osv-scanner + collect
+        # findings even when govulncheck fails. The collect step
+        # decides whether to open an issue.
+        continue-on-error: true
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          govulncheck ./... 2>&1 | tee /tmp/govulncheck.txt
+
+      - name: osv-scanner
+        id: osv
+        continue-on-error: true
+        # Scoped to go.mod, matching ci.yml — see the rationale there. Fixture
+        # Python deps are deliberately out of scope for both.
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.2.4
+          osv-scanner --lockfile go.mod 2>&1 | tee /tmp/osv.txt
+
+      - name: collect findings
+        id: collect
+        run: |
+          set -euo pipefail
+          fail=0
+          if [ "${{ steps.govuln.outcome }}" != "success" ] || \
+             [ "${{ steps.osv.outcome }}" != "success" ]; then
+            fail=1
+          fi
+          echo "findings=${fail}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## govulncheck"
+            echo '```'
+            tail -200 /tmp/govulncheck.txt || true
+            echo '```'
+            echo
+            echo "## osv-scanner"
+            echo '```'
+            tail -200 /tmp/osv.txt || true
+            echo '```'
+          } > /tmp/issue-body.md
+
+      - name: open issue on new advisory
+        if: steps.collect.outputs.findings == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DATE="$(date -u +%Y-%m-%d)"
+          TITLE="vuln-scan: new advisory hit on $DATE"
+          # Avoid duplicate-noise: don't open a fresh issue if one
+          # already exists with the same date in the title.
+          existing="$(gh issue list --label security --search "$TITLE" --json number --jq 'length')"
+          if [ "$existing" -gt 0 ]; then
+            echo "issue already exists for $DATE; skipping."
+            exit 0
+          fi
+          gh issue create \
+            --title "$TITLE" \
+            --label security,triage \
+            --body-file /tmp/issue-body.md

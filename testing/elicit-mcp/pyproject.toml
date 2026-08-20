@@ -1,0 +1,16 @@
+[project]
+name = "ctxcop-elicit-experiment"
+version = "0.0.1"
+description = "Minimal MCP server to empirically test whether ElicitationResult content reaches the model context (webflow/ctxcop#3)."
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.0.0",
+]
+
+[tool.uv]
+# typing-extensions 4.16.0 trips Socket's recently-published-artifact
+# block (published within hours of this lockfile update); pin back one
+# patch release until it ages out.
+constraint-dependencies = [
+    "typing-extensions<4.16.0",
+]

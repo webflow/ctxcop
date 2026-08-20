@@ -1,0 +1,9 @@
+[project]
+name = "ctxcop-posttooluse-mcp"
+version = "0.1.0"
+description = "Live-session test fixture for ctxcop's Claude Code PostToolUse redaction"
+requires-python = ">=3.11"
+# mcp 2.0 removed mcp.server.fastmcp; pin to the 1.x line that still has it.
+dependencies = [
+    "mcp>=2.0.0,<3",
+]

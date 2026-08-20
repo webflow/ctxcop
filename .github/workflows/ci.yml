@@ -1,0 +1,226 @@
+# Continuous integration for webflow/ctxcop.
+#
+# Every job is a required status check on the main-branch-protection
+# ruleset. Per .github/ACTION_PIN_POLICY.md:
+#   - every `uses:` is SHA-pinned with a `# vX.Y.Z` version comment
+#   - no wrapper actions — tools install via `go install` against
+#     pinned versions or download from checksum-verified releases
+#   - workflow-level permissions are read-only; no job needs write
+#   - no pull_request_target
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Group concurrent runs per branch so a force-push or rapid-fire PR
+# updates cancel in-flight stale runs. Saves CI minutes; never cancels
+# a `main` push run, only PR runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # --- correctness ---------------------------------------------------
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: gofmt
+        run: |
+          set -euo pipefail
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "::error::gofmt drift in:"
+            echo "$out"
+            echo "Run \`gofmt -w .\` locally and re-push."
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
+          golangci-lint run ./...
+
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: go test -race
+        shell: bash
+        run: go test -race -count=1 -coverprofile=coverage.out ./...
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: build
+        run: go build -o ctxcop ./cmd/ctxcop
+
+      - name: smoke
+        run: |
+          ./ctxcop --version
+          ./ctxcop --help >/dev/null
+          # Sanity-scan a known-fixture credential to confirm rules wire up.
+          printf 'AWS_ACCESS_KEY_ID=AKIA%s\n' LALEMEL33243OLIA | ./ctxcop scan | grep -q '<REDACTED:ctxcop-aws-access-key:OLIA>'
+
+  # --- security ------------------------------------------------------
+
+  security-scan:
+    # govulncheck (reachability-aware) + osv-scanner (broader OSV DB).
+    #
+    # gosec is intentionally NOT run as a standalone step here — it's
+    # already run by golangci-lint in the `lint` job above, where our
+    # .golangci.yml gosec exclusions (G204/G301/G304/G306, all false-
+    # positives for this tool's nature) actually apply. Standalone
+    # gosec doesn't read .golangci.yml and would re-flag everything
+    # we deliberately suppressed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          govulncheck ./...
+
+      - name: osv-scanner
+        # Scoped to go.mod rather than `--recursive .` on purpose. Recursive
+        # scanning also picks up testing/*/uv.lock — the Python deps of the
+        # manual harness-test rigs, which are never built, never imported by
+        # the binary, and never distributed. A new advisory anywhere in that
+        # mcp -> pyjwt -> cryptography chain would turn main red and block an
+        # unrelated release, with nothing a ctxcop user benefits from. Same
+        # 62-package Go coverage either way. Fixture deps are covered by
+        # Dependabot alerts instead.
+        run: |
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.2.4
+          osv-scanner --lockfile go.mod
+
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: go-licenses (permissive-license allowlist)
+        run: |
+          go install github.com/google/go-licenses@v1.6.0
+          # 0BSD is the BSD Zero Clause license, an OSI-approved
+          # permissive license used by mikelolasagasti/xz (transitive
+          # via mholt/archives). Same legal effect as Unlicense / CC0;
+          # ok to allow.
+          go-licenses check \
+            --allowed_licenses=MIT,MIT-0,Apache-2.0,BSD-2-Clause,BSD-3-Clause,0BSD,ISC,MPL-2.0,Unlicense,Zlib,CC0-1.0 \
+            ./...
+
+  self-scan:
+    # We are a credential scanner; we scan ourselves with ourselves.
+    # No third-party secret-scan action.
+    #
+    # Detection: a file fails the check if `ctxcop scan < $f` produces
+    # output that differs from the input. Any byte-level diff means the
+    # scanner found something and substituted a placeholder.
+    #
+    # Why diff-based and not grep-for-placeholder: ctxcop's own
+    # placeholder format `<REDACTED:...>` appears as documentation in
+    # several source files (priming messages, README examples, splice
+    # format strings). A grep would false-positive on those literal
+    # mentions; the diff approach distinguishes "the file already
+    # contains the placeholder shape as text" from "the scanner just
+    # produced a substitution."
+    #
+    # Path filtering mirrors internal/skiplist/skiplist.go's defaults
+    # plus go.sum/go.mod (machine-generated, base64 module-hash blobs
+    # trip the generic-api-key rule) and audits/ (the audit reports
+    # name credential patterns by design).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: build ctxcop
+        run: go build -o ./ctxcop ./cmd/ctxcop
+
+      - name: self-scan repo (diff-based, skip-list-aware)
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            [ -f "$f" ] || continue
+            if ! cmp -s "$f" <(./ctxcop scan < "$f"); then
+              echo "::error file=${f}::ctxcop scan produced a diff — credential-shape value found in a non-skip-list path. Either add the path to skip-list patterns, annotate the line with \`gitleaks:allow\` / \`ctxcop:fixture\`, or remove the credential."
+              fail=1
+            fi
+          done < <(
+            git ls-files \
+              | grep -vE '(^|/)(testdata|fixtures|__fixtures__|cassettes|tests?|spec|\.ctxcop|audits)/' \
+              | grep -vE '(^|/)[^/]*_test\.[A-Za-z0-9]+$' \
+              | grep -vE '(^|/)test_[^/]*\.py$' \
+              | grep -vE '\.(test|spec|fixture)\.[A-Za-z0-9]+$' \
+              | grep -vE '\.(golden|snap)$' \
+              | grep -vE '^(go\.sum|go\.mod)$'
+          )
+          exit $fail
+
+  upstream-imports:
+    # Mitigation #4 from audits/betterleaks-v1.2.0.md. Fails if the
+    # betterleaks integration packages we depend on start importing
+    # os/exec, unsafe, or reflect — net-new attack surface that the
+    # 2026-05-20 audit verified is absent. Run on every PR to catch
+    # regression at the bump that introduces it, not later.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: check upstream betterleaks integration imports
+        run: ./.github/scripts/check-upstream-imports.sh
