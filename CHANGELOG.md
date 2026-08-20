@@ -13,6 +13,18 @@ development history behind it — four internal release lines plus a
 hardening pass done ahead of open-sourcing — is preserved in
 [docs/dev-log/CHANGELOG-pre-1.0.md](docs/dev-log/CHANGELOG-pre-1.0.md).
 
+## [Unreleased]
+
+### Removed
+- **Prebuilt release binaries.** v0.1.0's macOS binaries were only
+  ad-hoc/linker-signed, which Gatekeeper rejects outright once a binary
+  has been through a download/quarantine flow. We're enrolled in the
+  Apple Developer Program but codesigning + notarization aren't wired
+  into the release pipeline yet, so releases are source-only
+  (`go install` or build from source) until that lands. The
+  build/cosign/SBOM/attest pipeline that produced v0.1.0's binaries is
+  intact in git history and will come back once the cert is in place.
+
 ## [0.1.0] — Unreleased
 
 ctxcop's first public release.
