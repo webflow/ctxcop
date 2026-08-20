@@ -1,17 +1,6 @@
-# Release pipeline — fires on `v*` tag push.
-#
-# Source-only for now: v0.1.0 shipped prebuilt macOS binaries that
-# Gatekeeper rejects outright (ad-hoc/linker-signed only, no Apple
-# Developer ID). We're enrolled in the Apple Developer Program but the
-# signing cert isn't provisioned yet, so this pipeline publishes the
-# GitHub Release from the tag with no binary assets — install is
-# build-from-source until codesigning + notarization land. The full
-# build/cosign/SBOM/attest pipeline that produced v0.1.0's binaries is
-# still in git history (this commit's parent) to restore from once the
-# cert is ready.
-#
-# webflow/homebrew-ctxcop polls this repo's binary releases to bump its
-# formula — it has nothing to bump until binaries come back.
+# Release pipeline — fires on `v*` tag push. Source-only pending macOS
+# notarization; see PR #5. Build/cosign/SBOM/attest pipeline is in git
+# history to restore once that's wired in.
 
 name: release
 
@@ -44,12 +33,7 @@ jobs:
     needs: validate-tag
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Manual approval gate: the `release` environment carries a
-    # required-reviewer protection (the tag-pusher plus
-    # @webflow/infrastructure-security, with `prevent_self_review: true`),
-    # so the run halts here until a reviewer other than whoever pushed
-    # the tag approves.
-    environment: release
+    environment: release  # required-reviewer gate, prevent_self_review
     permissions:
       contents: write  # create the GitHub Release
     steps:
