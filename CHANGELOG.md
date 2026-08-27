@@ -15,6 +15,21 @@ hardening pass done ahead of open-sourcing — is preserved in
 
 ## [Unreleased]
 
+### Security
+- **OpenCode: `output.metadata` is now redacted, not just `output.output`.**
+  `tool.execute.after`'s `output` has three independently-mutable fields —
+  `title`, `output`, `metadata` — and OpenCode populates `metadata` with a
+  raw copy of the tool's result, persisted to the session store and
+  included in `--format json` / `opencode export`, independent of
+  `output.output`. ctxcop's bridge only ever redacted `output.output` (the
+  field the model reads next turn), so a secret fully redacted in what the
+  model saw could still sit in plaintext in session metadata. Confirmed
+  live against a real OpenCode session: `output.output` came back clean
+  while `output.metadata.output` still carried the raw AWS/GitHub/OpenAI/
+  Anthropic-shaped fixtures. `metadata` is now walked and redacted via the
+  same tree-walker the claudecode/cursor/pi adapters already use for their
+  tree-shaped payloads. (#9)
+
 ### Removed
 - **Prebuilt release binaries.** v0.1.0's macOS binaries were only
   ad-hoc/linker-signed, which Gatekeeper rejects outright once a binary

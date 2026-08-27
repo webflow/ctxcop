@@ -64,9 +64,16 @@ export const ctxcop: { id: string; server: Plugin } = {
         callID: input.callID,
         args: input.args,
         output: output.output,
+        metadata: output.metadata,
       });
       if (typeof r?.output === "string") {
         output.output = r.output;
+      }
+      // metadata is a raw copy of the tool's result that OpenCode persists
+      // to the session store independently of output.output — redact it
+      // in place so a secret redacted above doesn't survive there instead.
+      if (r?.metadata && typeof r.metadata === "object" && output.metadata && typeof output.metadata === "object") {
+        replaceInPlace(output.metadata, r.metadata);
       }
     },
   }),

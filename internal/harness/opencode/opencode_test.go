@@ -168,6 +168,34 @@ func TestToolExecuteAfterRedactsBashOutput(t *testing.T) {
 	}
 }
 
+// OpenCode persists output.metadata to the session store (and includes
+// it in `--format json` / `opencode export`) independently of
+// output.output. A tool that mirrors its raw stdout into metadata
+// (observed live for `bash`) must not leak the secret there even
+// though output.output came back clean/redacted.
+func TestToolExecuteAfterRedactsMetadataEvenWhenOutputClean(t *testing.T) {
+	body := `{"tool":"bash","sessionID":"s1","callID":"c1","args":{"command":"env"},"output":"ok","metadata":{"output":"AWS_ACCESS_KEY_ID=` + akia + `\n"}}`
+	var out bytes.Buffer
+	if err := ToolExecuteAfter(strings.NewReader(body), &out); err != nil {
+		t.Fatal(err)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v (%q)", err, out.String())
+	}
+	if strings.Contains(out.String(), akia) {
+		t.Errorf("literal credential survived in metadata: %q", out.String())
+	}
+	meta, _ := resp["metadata"].(map[string]any)
+	if meta == nil {
+		t.Fatalf("expected `metadata` key in response, got %q", out.String())
+	}
+	metaOut, _ := meta["output"].(string)
+	if !strings.Contains(metaOut, "REDACTED:ctxcop-aws-access-key") {
+		t.Errorf("expected placeholder in mutated metadata, got: %q", metaOut)
+	}
+}
+
 func TestToolExecuteAfterRedactsReadOutput(t *testing.T) {
 	body := `{"tool":"read","sessionID":"s1","callID":"c1","args":{"filePath":"/tmp/.env"},"output":"# secrets\nKEY=` + akia + `\n"}`
 	var out bytes.Buffer
