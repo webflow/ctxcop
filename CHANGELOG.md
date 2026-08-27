@@ -28,7 +28,7 @@ hardening pass done ahead of open-sourcing — is preserved in
   while `output.metadata.output` still carried the raw AWS/GitHub/OpenAI/
   Anthropic-shaped fixtures. `metadata` is now walked and redacted via the
   same tree-walker the claudecode/cursor/pi adapters already use for their
-  tree-shaped payloads.
+  tree-shaped payloads. (#9)
 
 ### Removed
 - **Prebuilt release binaries.** v0.1.0's macOS binaries were only
