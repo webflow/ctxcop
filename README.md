@@ -1,3 +1,10 @@
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./webflow.svg">
+    <img alt="Webflow" src="./webflow.svg" width="300">
+  </picture>
+</div>
+
 # ctxcop
 
 Keep secrets out of AI coding agents' context windows.
@@ -154,3 +161,10 @@ MIT — see [LICENSE](LICENSE).
 ctxcop is built on the [betterleaks](https://github.com/betterleaks/betterleaks)
 secret-scanning engine (MIT, © Zachary Rice). Full third-party
 attributions are in [NOTICES.md](NOTICES.md).
+
+## Webflow Open Source
+
+Webflow builds the visual development platform behind millions of
+websites. We open source internal tools like ctxcop when we think
+they're broadly useful beyond our own stack. Check out our other
+projects at [github.com/webflow](https://github.com/webflow).
