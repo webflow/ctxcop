@@ -15,6 +15,8 @@ hardening pass done ahead of open-sourcing — is preserved in
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-08-27
+
 ### Security
 - **OpenCode: `output.metadata` is now redacted, not just `output.output`.**
   `tool.execute.after`'s `output` has three independently-mutable fields —
