@@ -53,3 +53,24 @@ ossf/scorecard-action
 # (build commits committed mid-build can't tamper). Collaborated on by
 # Google, Chainguard, and the Linux Foundation.
 slsa-framework/slsa-github-generator
+
+# --- StepSecurity ---
+# Harden-Runner. Not a wrapper around a tool we'd otherwise invoke via
+# `run:` — its whole function is hooking the runner's networking before
+# anything else in the job executes, which a plain script can't do.
+# Added as the first step of release.yml's publish-source-release job
+# only, in `egress-policy: audit` (observe, never block). That job is
+# the one place in this repo with a `contents: write` token behind an
+# environment gate, and it's the job the not-yet-restored cosign/SBOM/
+# notarization pipeline (see release.yml history) will land in — this
+# gets egress visibility wired in ahead of that, rather than as a
+# follow-up once real signing/notarization credentials are present.
+# Deliberately not added to lint/test/build/codeql/vuln-scan/scorecard:
+# none of those jobs carry a token or secret worth watching, and
+# per-job StepSecurity is a privileged eBPF-based agent, not a passive
+# action — running it where there's nothing to protect is added attack
+# surface and an added external-service dependency for zero benefit.
+# Maintainer: StepSecurity (venture-backed security co., not a single
+# maintainer); action is widely adopted (OpenSSF, many CNCF projects).
+# Pinned SHA: e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+step-security/harden-runner
