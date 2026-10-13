@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,9 @@ import (
 // EPIPE, so the binary has to drain stdin before exiting.
 func TestPausedHooksDrainStdin(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "ctxcop")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
@@ -39,7 +43,7 @@ func TestPausedHooksDrainStdin(t *testing.T) {
 	for _, ev := range events {
 		t.Run(strings.Join(ev, "/"), func(t *testing.T) {
 			cmd := exec.Command(bin, append([]string{"hook"}, ev...)...)
-			cmd.Env = append(os.Environ(), "HOME="+home)
+			cmd.Env = append(os.Environ(), "HOME="+home, "USERPROFILE="+home) // USERPROFILE on Windows
 			in, err := cmd.StdinPipe()
 			if err != nil {
 				t.Fatal(err)
