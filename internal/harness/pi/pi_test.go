@@ -3,6 +3,9 @@ package pi
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -266,5 +269,40 @@ func TestBridgeSourceLooksRight(t *testing.T) {
 		if !strings.Contains(src, want) {
 			t.Errorf("embedded bridge missing %q", want)
 		}
+	}
+}
+
+// ---- Bridge ----------------------------------------------------------------
+
+// Real-process check of the bridge: a paused hook that exits without
+// reading a >64KB payload must not crash the host with an unhandled EPIPE.
+func TestBridgeSurvivesEarlyExitHook(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "fake-ctxcop")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho '{}'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Run the shipped bridge source with a fake pi; node strips the TS types.
+	if err := os.WriteFile(filepath.Join(dir, "bridge.ts"), []byte(BridgeSource()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	js := filepath.Join(dir, "t.mjs")
+	script := `import bridge from "./bridge.ts";
+const h = {};
+bridge({ on: (n, f) => (h[n] = f) });
+await h.before_provider_request({ payload: "x".repeat(400 * 1024) });
+console.log("ok");`
+	if err := os.WriteFile(js, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(node, js)
+	cmd.Env = append(os.Environ(), "CTXCOP_BIN="+fake)
+	outb, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(outb), "ok") {
+		t.Fatalf("bridge crashed on early-exit hook: %v\n%s", err, outb)
 	}
 }

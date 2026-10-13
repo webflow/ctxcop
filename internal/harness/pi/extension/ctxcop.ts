@@ -22,6 +22,7 @@ async function callCtxcop(subcmd: string, payload: unknown): Promise<unknown> {
       try { resolve(out ? JSON.parse(out) : {}); }
       catch { resolve({}); }
     });
+    proc.stdin?.on("error", () => {}); // EPIPE if the hook exits without reading; fail open
     try {
       proc.stdin?.write(JSON.stringify(payload));
       proc.stdin?.end();
