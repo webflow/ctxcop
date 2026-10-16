@@ -3,6 +3,9 @@ package opencode
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -284,5 +287,36 @@ func TestIsExfilClass(t *testing.T) {
 		if got := isExfilClass(c.tool); got != c.want {
 			t.Errorf("isExfilClass(%q) = %v, want %v", c.tool, got, c.want)
 		}
+	}
+}
+
+// A hook that exits without reading a >64KB payload (paused) must not crash
+// the host with an unhandled EPIPE on the bridge's stdin.
+func TestBridgeSurvivesEarlyExitHook(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed")
+	}
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "fake-ctxcop")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\necho '{}'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bridge.ts"), []byte(BridgeSource()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	script := `import { ctxcop } from "./bridge.ts";
+const h = await ctxcop.server({});
+await h["tool.execute.before"]({ tool: "bash" }, { args: { command: "x".repeat(400 * 1024) } });
+console.log("ok");`
+	js := filepath.Join(dir, "t.mjs")
+	if err := os.WriteFile(js, []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(node, js)
+	cmd.Env = append(os.Environ(), "CTXCOP_BIN="+fake)
+	outb, err := cmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(outb), "ok") {
+		t.Fatalf("bridge crashed on early-exit hook: %v\n%s", err, outb)
 	}
 }

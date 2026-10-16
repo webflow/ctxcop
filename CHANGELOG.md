@@ -15,6 +15,16 @@ hardening pass done ahead of open-sourcing — is preserved in
 
 ## [Unreleased]
 
+### Security
+- **Go toolchain bumped to 1.26.9** for GO-2026-6617 (HTTP/2 server crash
+  from an HPACK encoder race in `net/http`, fixed in 1.26.9).
+
+### Fixed
+- **Hooks drain stdin before exiting.** A paused hook (or one with an off
+  switch set) returned without reading its input, so a bridge writing a
+  payload over the pipe buffer (~64KB) got EPIPE and crashed the host. The
+  pi and opencode bridges also handle stdin errors now.
+
 ## [0.1.1] — 2026-08-27
 
 ### Security

@@ -407,10 +407,24 @@ func cmdScan() int {
 	return 0
 }
 
+// drainStdin consumes unread hook input. Handlers that return early (paused,
+// off switches) would otherwise exit with the harness still writing, which
+// surfaces as EPIPE in the bridge once the payload exceeds the pipe buffer.
+// Skipped on a terminal so manual runs don't block.
+func drainStdin() {
+	if fi, err := os.Stdin.Stat(); err != nil || fi.Mode()&os.ModeCharDevice != 0 {
+		return
+	}
+	_, _ = io.Copy(io.Discard, os.Stdin)
+}
+
 func cmdHook(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "ctxcop: hook requires an event name (pre-tool-use | session-start | ... | codex <event>)")
 		return 0 // fail open
+	}
+	if args[0] != "aider" {
+		defer drainStdin()
 	}
 	// `ctxcop hook <harness> <event>` routes to the named adapter;
 	// everything else stays on the (default) Claude Code adapter so
