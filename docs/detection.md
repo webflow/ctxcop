@@ -9,7 +9,7 @@ what every hook scans.
    built-in recursive codec decoding (base64/hex/percent/unicode) so
    secrets that were encoded before they reached the tool output are
    still caught.
-2. **ctxcop embedded pack** — eight high-confidence single-purpose
+2. **ctxcop embedded pack** — twelve high-confidence single-purpose
    patterns shipped in the binary. Same shape as gitleaks rules but
    tuned for the CLI-output threat model: where gitleaks requires a
    `\b` boundary (so credentials glued to surrounding text by tools
@@ -27,6 +27,19 @@ what every hook scans.
    | `ctxcop-gitlab-pat` | `glpat-` |
    | `ctxcop-slack-token` | `xox[bpoars]-` |
    | `ctxcop-stripe-secret-key` | `(sk\|rk)_(live\|test)_` |
+   | `ctxcop-redis-auth-command` | bare `AUTH [user] <password>` command lines (16+, upper/digit gate) |
+   | `ctxcop-redis-auth-array` | `AUTH` in quoted args arrays / JSON (node-redis error form) |
+   | `ctxcop-redis-auth-resp` | `AUTH` in RESP protocol dumps (raw / escaped / flattened CRLF) |
+   | `ctxcop-redis-auth-cli` | `redis-cli` `-a` / `--pass` flag arguments |
+
+   The redis-auth rules close a structural gap in the upstream ruleset:
+   a bare Redis password has no token prefix and no key=value shape, the
+   two forms gitleaks-class rules detect. Ported from
+   [webflow/secrets-scrubber](https://github.com/webflow/secrets-scrubber)
+   (rule-for-rule from its four redis-auth rules; RE2 forbids its JS
+   lookaheads, so its reference-value heuristic became the per-rule CEL
+   filter). Redaction span is the whole match: the AUTH verb, RESP
+   framing, and ACL username vanish with the password.
 
 3. **`~/.ctxcop/*.toml`** — every `.toml` file in the user rules dir,
    loaded in alphabetical order. Drop org-specific credential patterns

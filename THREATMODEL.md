@@ -213,6 +213,16 @@ the approach, not bugs:
   shaped to evade the ruleset are not in scope — ctxcop assumes the
   agent and tools are not actively cooperating in exfiltration.
 
+- **Bare Redis AUTH residuals.** The embedded redis-auth rules cover
+  the common leak shapes (plain AUTH lines, node-redis structured
+  errors, RESP dumps, redis-cli flags; ported from
+  webflow/secrets-scrubber) but keep their floors and framing
+  requirements: shorter passwords, RESP dumps with an empty
+  (`$0`-bulk) ACL username, and any RESP command other than AUTH pass
+  through. Floors exist because a sub-8-char finding trips Splice's
+  over-redact backstop against unrelated lines carrying the same
+  short form.
+
 ## Out of scope
 
 These are documented non-goals, listed so it's clear what *not* to

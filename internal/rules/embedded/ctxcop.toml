@@ -192,3 +192,88 @@ id = "sourcegraph-access-token"
 description = "Sourcegraph access token (prefixed forms only; bare 40-hex dropped — collides with Git SHAs)"
 regex = '''(?i)\b(\b(sgp_(?:[a-fA-F0-9]{16}|local)_[a-fA-F0-9]{40}|sgp_[a-fA-F0-9]{40})\b)(?:\\?['"\x60]|[\s;]|\\[nr]|$)'''
 keywords = ["sgp_"]
+
+# Redis authentication credentials. Ported from webflow/secrets-scrubber
+# (built around a real Redis key leak into an AI session), where betterleaks
+# upstream has a structural gap: a bare Redis password carries no
+# self-identifying token prefix and no key=value assignment structure, the
+# two shapes gitleaks-class rules detect. Four leak shapes passed through
+# unredacted upstream + embedded as of v0.1.1: the plain AUTH command line
+# as error logs and pasted history show it, the node-redis structured error
+# form (args array and JSON rendering), redis-cli invocations, and RESP
+# protocol dumps in all three encodings they appear in logs (raw CRLF,
+# escaped CRLF, space-flattened).
+#
+# Adaptations from the secrets-scrubber JS originals to RE2 + CEL-filter
+# semantics:
+#   1. Reference-value exclusion ($VAR refs, process.env chains, template
+#      placeholders must pass) moves from a replace-callback heuristic into
+#      a per-rule CEL filter on the captured secret.
+#   2. The plain-AUTH "value must contain an uppercase letter or digit"
+#      gate becomes the `[a-z]*[A-Z0-9]` prefix, preserving the secret-span
+#      start.
+#   3. RESP bulk values exclude whitespace and backslash instead of the JS
+#      tempered-dot lookahead (RE2 has none). Real passwords contain neither.
+#   4. The RESP rule additionally requires the `*N` array header every real
+#      RESP command dump carries — the JS original does not anchor on it,
+#      but without it a dollar-amount next to the literal word "auth" in
+#      prose would redact an innocent trailing word. All of
+#      secrets-scrubber's RESP fixtures carry the header, so recall on the
+#      leak shapes is unchanged.
+#
+# Span semantics: these rules redact the whole match (AUTH verb, framing,
+# and ACL username vanish with the password), matching the bearer-token
+# rule's house style. The db-connection-uri rule keeps the host only
+# because its regex deliberately ends at `@`.
+#
+# Every rule carries a minimum-length floor: a sub-8-char finding trips
+# Splice's over-redact backstop against lines sharing its tiny secret form
+# (a stray `/` swept every slash-bearing line during development). The
+# plain-AUTH rule keeps secrets-scrubber's 16+ floor; array, RESP, and cli
+# rules use 8.
+[[rules]]
+id = "ctxcop-redis-auth-command"
+description = "Redis AUTH command line: optional ACL user then a 16+ char password (upper or digit required)"
+regex = '''(?m)(?:^|[^A-Za-z0-9_])AUTH[ \t]+(?:[A-Za-z0-9_.-]{1,64}[ \t]+)?([a-z]*[A-Z0-9][^\s'"`]{15,})'''
+keywords = ["auth"]
+filter = '''
+matchesAny(finding["secret"], [
+  "^[$<{%\\[]",
+  "^(?i)(?:process|env|os|self|config|secrets?|var|vars)\\."
+])
+'''
+
+[[rules]]
+id = "ctxcop-redis-auth-array"
+description = "Redis AUTH in structured args / JSON: quoted AUTH, optional user, 8+ char quoted password"
+regex = '''['"]AUTH['"]\s*,\s*(?:['"][^'"]{1,64}['"]\s*,\s*)?['"]([^'"]{8,})['"]'''
+keywords = ["auth"]
+filter = '''
+matchesAny(finding["secret"], [
+  "^[$<{%\\[]",
+  "^(?i)(?:process|env|os|self|config|secrets?|var|vars)\\."
+])
+'''
+
+[[rules]]
+id = "ctxcop-redis-auth-resp"
+description = "Redis AUTH in RESP protocol dumps (raw/escaped/flattened CRLF): password bulk string after the AUTH command bulk"
+regex = '''(?i)\*[0-9]+(?:\\r\\n|\r\n|\n|\r| )\$4(?:\\r\\n|\r\n|\n|\r| )auth(?:\\r\\n|\r\n|\n|\r| )(?:(?:\$[0-9]+(?:\\r\\n|\r\n|\n|\r| ))?[^\s\\]+(?:\\r\\n|\r\n|\n|\r| ))?\$[0-9]+(?:\\r\\n|\r\n|\n|\r| )([^\s\\]+)'''
+keywords = ["auth"]
+filter = '''
+matchesAny(finding["secret"], [
+  "^[$<{%\\[]"
+])
+'''
+
+[[rules]]
+id = "ctxcop-redis-auth-cli"
+description = "redis-cli password flag arguments (the -a/--pass flags)"
+regex = '''\bredis-cli\b[^\n|;&]*?[ \t](?:-a|--pass)[ \t]+['"]?([^\s'"]{8,})'''
+keywords = ["redis-cli"]
+filter = '''
+matchesAny(finding["secret"], [
+  "^[$<{%\\[]",
+  "^(?i)(?:process|env|os|self|config|secrets?|var|vars)\\."
+])
+'''
