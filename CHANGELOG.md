@@ -19,6 +19,25 @@ hardening pass done ahead of open-sourcing — is preserved in
 - **Go toolchain bumped to 1.26.9** for GO-2026-6617 (HTTP/2 server crash
   from an HPACK encoder race in `net/http`, fixed in 1.26.9).
 
+### Added
+- **Redis AUTH detection: four embedded rules covering the leak shapes
+  upstream has no answer for.** A bare Redis password has no token prefix
+  and no key=value shape — the two forms gitleaks-class rules detect — so
+  the plain AUTH command line as error logs show it, the node-redis
+  structured error form (args array and JSON), redis-cli `-a`/`--pass`
+  invocations, and RESP protocol dumps (raw CRLF, escaped, space-flattened)
+  all passed through unredacted. Rules are ported rule-for-rule from
+  [webflow/secrets-scrubber](https://github.com/webflow/secrets-scrubber)
+  (Santiago Moreno), whose project was built around a real Redis key leak
+  into an AI session; RE2 forbids its JS lookaheads, so its
+  reference-value heuristic became a per-rule CEL filter. Every rule
+  carries a minimum-length floor (16 for plain AUTH, 8 elsewhere) — a
+  sub-8-char finding trips Splice's over-redact backstop against
+  unrelated lines carrying the same short form. Port deviation: the RESP
+  rule requires the `*N` array header (all of secrets-scrubber's RESP
+  fixtures carry it) so prose dollar-amounts near the word auth do not
+  redact.
+
 ### Fixed
 - **Hooks drain stdin before exiting.** A paused hook (or one with an off
   switch set) returned without reading its input, so a bridge writing a
