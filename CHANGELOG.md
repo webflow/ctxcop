@@ -15,9 +15,19 @@ hardening pass done ahead of open-sourcing — is preserved in
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-10-27
+
 ### Security
-- **Go toolchain bumped to 1.26.9** for GO-2026-6617 (HTTP/2 server crash
-  from an HPACK encoder race in `net/http`, fixed in 1.26.9).
+- **Go toolchain bumped to 1.26.10** for GO-2026-6809 (`crypto/x509`,
+  reachable from ctxcop's code, fixed in 1.26.10) and GO-2026-6617 (HTTP/2
+  server crash from an HPACK encoder race in `net/http`, fixed in 1.26.9).
+- **Vulnerable indirect dependencies bumped.** govulncheck found none of
+  these reachable from ctxcop's code; they're patched anyway:
+  `github.com/google/cel-go` v0.30.0 (GO-2026-6094), `golang.org/x/text`
+  v0.41.0 (GO-2026-5970, GO-2026-6629), `github.com/klauspost/compress`
+  v1.18.7 (GO-2026-5841), and `golang.org/x/crypto` v0.56.0 (GO-2026-6303,
+  GO-2026-6354, GO-2026-6355). GO-2026-5932 (the unmaintained
+  `x/crypto/openpgp` package) has no fixed version; ctxcop doesn't import it.
 
 ### Fixed
 - **Hooks drain stdin before exiting.** A paused hook (or one with an off
@@ -99,4 +109,6 @@ ctxcop's first public release.
 - Full line-by-line detail, including issue references, is in the
   [pre-1.0 dev log](docs/dev-log/CHANGELOG-pre-1.0.md).
 
+[0.1.2]: https://github.com/webflow/ctxcop/releases/tag/v0.1.2
+[0.1.1]: https://github.com/webflow/ctxcop/releases/tag/v0.1.1
 [0.1.0]: https://github.com/webflow/ctxcop/releases/tag/v0.1.0
